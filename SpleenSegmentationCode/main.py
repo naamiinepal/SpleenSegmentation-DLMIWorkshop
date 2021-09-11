@@ -1,10 +1,6 @@
 import os
 from glob import glob
 
-import monai
-import nibabel as nib
-import numpy as np
-import SimpleITK as sitk
 import torch
 from monai.apps.utils import download_and_extract
 from monai.data.dataloader import DataLoader
@@ -13,19 +9,15 @@ from monai.networks.nets import UNet
 from monai.transforms.compose import Compose
 from monai.transforms.croppad.dictionary import (CropForegroundD,
                                                  RandCropByPosNegLabelD)
-from monai.transforms.intensity.dictionary import (ScaleIntensityD,
-                                                   ScaleIntensityRangeD)
-from monai.transforms.io.array import LoadImage
+from monai.transforms.intensity.dictionary import ScaleIntensityRangeD
 from monai.transforms.io.dictionary import LoadImageD
 from monai.transforms.spatial.dictionary import OrientationD, SpacingD
-from monai.transforms.utility.dictionary import (AddChannelD,
+from monai.transforms.utility.dictionary import (CastToTypeD,
                                                  EnsureChannelFirstD,
                                                  SqueezeDimD, ToTensorD)
 from monai.utils.misc import first, set_determinism
 from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
 from torch.nn import CrossEntropyLoss
-from torch.nn.modules.loss import BCELoss, BCEWithLogitsLoss
 from torch.optim import Adam
 
 # download and extract spleen segmentation dataset
@@ -91,6 +83,7 @@ spleen_transforms = Compose([
     CropForegroundD(keys=keys, source_key=keys[0]),
     RandCropByPosNegLabelD(keys, keys[1], spatial_size, 1, 1, 4, keys[0]),
     ToTensorD(keys=keys),
+    CastToTypeD(keys=keys[1], dtype=torch.long),  # conversion of labels to long from float to keep CrossEntropyLoss() from complaining
     SqueezeDimD(keys=keys[1], dim=0)  # remove channel dim for label to be compatible with crossentropyloss
 
 ])
@@ -115,11 +108,14 @@ optimizer = Adam(net.parameters(), learning_rate)
 
 batch = first(spleen_train_dataloader)
 print('Image label shape', batch[keys[0]].shape, batch[keys[1]].shape, )
+target = batch[keys[1]].to(device)
 out = net(batch[keys[0]].to(device))
 print('Output shape', out.shape)
-loss_val = loss_function(out, torch.tensor(batch[keys[1]], dtype=torch.long, device=device))
+loss_val = loss_function(out, target)
 print(f'Loss val {loss_val.item():.3f}')
 # print(net)
+
+
 # train network
 
 num_epoch = 4
@@ -138,7 +134,6 @@ for epoch in range(num_epoch):
     # put the network in train mode
     net.train()
     for batch in spleen_train_dataloader:
-        # conversion of labels to long from float to keep CrossEntropyLoss() from complaining
         images, labels = batch[keys[0]].to(device), torch.tensor(batch[keys[1]], dtype=torch.long, device=device)
         optimizer.zero_grad()
         outputs = net(images)
