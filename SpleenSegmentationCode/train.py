@@ -15,7 +15,7 @@ from ignite.utils import setup_logger
 from monai import engines
 from monai.apps.utils import download_and_extract
 from monai.data.dataloader import DataLoader
-from monai.data.dataset import Dataset
+from monai.data.dataset import CacheDataset, Dataset
 from monai.engines import SupervisedEvaluator, SupervisedTrainer
 from monai.handlers import from_engine, stats_handler
 from monai.handlers.checkpoint_loader import Checkpoint
@@ -116,8 +116,8 @@ spleen_transforms = Compose([
 
 ])
 batch_size = 4
-spleen_train_dataset = Dataset(training_dicts, spleen_transforms)
-spleen_val_dataset = Dataset(validation_dicts, spleen_transforms)
+spleen_train_dataset = CacheDataset(training_dicts, spleen_transforms, cache_rate=1.0, num_workers=4y)
+spleen_val_dataset = CacheDataset(validation_dicts, spleen_transforms, cache_rate=1.0, num_workers=4)
 spleen_train_dataloader = DataLoader(spleen_train_dataset, batch_size=batch_size,
                                      shuffle=True, num_workers=4, drop_last=True)
 spleen_val_dataloader = DataLoader(spleen_val_dataset, batch_size=batch_size,
