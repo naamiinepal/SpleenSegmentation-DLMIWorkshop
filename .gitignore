@@ -1,1 +1,4 @@
 Dataset/*
+TrainedModels/*
+*.log
+*/__pycache__/*
